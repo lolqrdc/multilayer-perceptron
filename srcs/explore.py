@@ -87,10 +87,10 @@ def main():
     
     basicInfo(X, y)
     
-    distributions_plot(X, y, f"{save_dir}/distributions.png")
-    correlation_scatter_plot(X, y, f"{save_dir}/analysis.png")
+    distributions_plot(X, y, save_dir + "/distributions.png")
+    correlation_scatter_plot(X, y, save_dir + "/analysis.png")
     
-    print(f"\nPlots saved.")
+    print("\nPlots saved.")
 
 if __name__ == "__main__":
     main()

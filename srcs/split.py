@@ -23,7 +23,7 @@ def writeData(data, filename):
     filepath = os.path.join(project_dir, "data", filename)
     
     np.savetxt(filepath, data, fmt='%s', delimiter=',')
-    print(f"Saved {data.shape[0]} samples to data/{filename}")
+    print("Saved", data.shape[0], "samples to data/" + filename)
 
 def main():
     data = readData("data/data.csv")
@@ -38,8 +38,8 @@ def main():
     train_data = data[:n_train]
     valid_data = data[n_train:]
     
-    print(f"Train split: {train_data.shape}")
-    print(f"Valid split: {valid_data.shape}")
+    print("Train split:", train_data.shape)
+    print("Valid split:", valid_data.shape)
     
     writeData(train_data, "data_train.csv")
     writeData(valid_data, "data_valid.csv")

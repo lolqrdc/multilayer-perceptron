@@ -68,10 +68,25 @@ class MLP:
             else:
                 A = self.relu(Z)
 
-            caches[f'Z{l}'] = Z # Save du score brut 
-            caches[f'A{l}'] = A # Save de la proba
+            caches['Z' + str(l)] = Z # Save du score brut 
+            caches['A' + str(l)] = A # Save de la proba
 
         return (A, caches)
+
+    def cross_entropy_loss(self, Y_pred, Y_true): # quantifier l'erreur
+        m = Y_true.shape[0] # nbr de patients
+        Y_true_oh = np.eye(2)[Y_true.astype(int)] # transforme les reponses au meme format que softmax
+        loss = -1/m * np.sum(Y_true_oh * np.log(Y_pred + 1e-15)) # penalise les mauvaise predict ET recompense les bonnes predict
+        return(np.squeeze(loss))
+    
+    def accurate(self, Y_pred, Y_true): # % de bonnes predictions
+        Y_pred_class = np.argmax(Y_pred, axis=1)
+        return (np.mean(Y_pred_class == Y_true)) # nb_bonnes / nb_total
+    
+    def backward(self, X, Y_true, caches, Y_pred):
+        m = X.shape[0]
+
+
 
 def main():
 
@@ -85,18 +100,34 @@ def main():
     X_train, X_valid, mean, std = normalize(X_trainRow, X_ValidRow)
 
 # TEST BY PRINT   
-    print(f"RAW shapes: train {X_trainRow.shape}, valid {X_ValidRow.shape}")
-    print(f"NORM shapes: train {X_train.shape}, valid {X_valid.shape}")
-    print(f"Labels train: {np.sum(y_train)} M / {len(y_train)} total")
-    print(f"radius_mean après norm: mean={np.mean(X_train[:,0]):.3f}")
+    print("RAW shapes: train", X_trainRow.shape, ", valid", X_ValidRow.shape)
+    print("NORM shapes: train", X_train.shape, ", valid", X_valid.shape)
+    print("Labels train:", np.sum(y_train), "M /", len(y_train), "total")
+    print("radius_mean après norm: mean=" + str(round(np.mean(X_train[:,0]), 3)))
 
+# Phase 3
     mlp = MLP([30, 24, 24, 2])
     Y_pred, caches = mlp.feedforward(X_train[:3])
-    print(f"X: {X_train[:3].shape}")
-    print(f"Y_pred:{Y_pred.shape}")
-    print(f"Probas:\n{Y_pred.round(3)}")
-    print(f"Somme=1: {np.sum(Y_pred, axis=1).round(3)}")
-    print(f"Cache: {list(caches.keys())}")
+    print("X:", X_train[:3].shape)
+    print("Y_pred:", Y_pred.shape)
+    print("Probas:")
+    print(Y_pred.round(3))
+    print("Somme=1:", np.sum(Y_pred, axis=1).round(3))
+    print("Cache:", list(caches.keys()))
+
+# Phase 4
+    mlp = MLP([30, 24, 24, 2])
+    Y_pred, caches = mlp.feedforward(X_train[100])
+    Y_train_batch = y_train[:100].flatten()
+
+    loss = mlp.cross_entropy_loss(Y_pred, Y_train_batch)
+    acc = mlp.accurate(Y_pred, Y_train_batch)
+
+    print("Loss:", round(loss, 3))
+    print("Accuracy:", round(acc * 100, 1), "%")
+    print("Prediction:", np.argmax(Y_pred[:5], axis=1))
+    print("Correct answers:", Y_train_batch[:5])
+
 
 if __name__ == "__main__":
     main()
