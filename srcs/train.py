@@ -1,132 +1,224 @@
-#GOAL: Train MLP on the dataset using backpropagation and gradient descent.
-# 2 hidden layers minimum, softmax function.
+"""
+Training module for the Multilayer Perceptron.
+Handles network architecture, training (forward + backprop) and model saving.
+"""
 
-import csv
-import os
 import numpy as np
+import argparse
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
-def readData(data):
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    mlp_dir = os.path.dirname(script_dir)
-    data_dir = os.path.join(mlp_dir, "data")
-    filepath = os.path.join(data_dir, data)
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
 
-    features = []
-    diagnosis = []
-    with open(filepath, newline='') as csvfile:
-        datareader = csv.reader(csvfile, delimiter=',')
-        for row in datareader:
-            diagnosis.append(row[1])
-            features.append([float(x) for x in row[2:]])
-    return np.array(features), np.array(diagnosis)
+def sigmoid_derivative(z):
+    s = sigmoid(z)
+    return s * (1 - s)
 
-def binary_labels(y_str):
-    return np.array([1 if label == 'M' else 0 for label in y_str])
+def relu(z):
+    return np.maximum(0, z)
+
+def relu_derivative(z):
+    return (z > 0).astype(float)
+
+def softmax(z):
+    e = np.exp(z - np.max(z, axis=1, keepdims=True))
+    return e / np.sum(e, axis=1, keepdims=True)
+
+
+ACTIVATIONS = {
+    'sigmoid': (sigmoid, sigmoid_derivative),
+    'relu':    (relu,    relu_derivative),
+    'softmax': (softmax, None),
+}
+
+class Layer:
+    def __init__(self, n_inputs, n_neurons, activation='sigmoid'):
+        assert activation in ACTIVATIONS, f"Unknown activation: {activation}"
+
+        limit = np.sqrt(2 / n_inputs)
+        self.W = np.random.uniform(-limit, limit, (n_inputs, n_neurons))
+        self.b = np.zeros((1, n_neurons))
+
+        self.activation_name = activation
+        self.activation, self.activation_derivative = ACTIVATIONS[activation]
+
+        self.input  = None
+        self.z      = None
+        self.output = None
+
+    def forward(self, x):
+        self.input = x
+        self.z = x @ self.W + self.b
+        self.output = self.activation(self.z)
+        return self.output
+
+def forward(network, X):
+    output = X
+    for layer in network:
+        output = layer.forward(output)
+    return output  
+
+def categorical_crossentropy(y_pred, y_true):
+    y_pred = np.clip(y_pred, 1e-15, 1 - 1e-15)
+    return -np.mean(np.sum(y_true * np.log(y_pred), axis=1))
+
+def accuracy(y_pred, y_true):
+    predictions = np.argmax(y_pred, axis=1)
+    labels      = np.argmax(y_true, axis=1)
+    return np.mean(predictions == labels)
+
+def backprop(network, y_pred, y_true, learning_rate):
+    n = y_true.shape[0]
+    delta = y_pred - y_true
+
+    for i, layer in enumerate(reversed(network)):
+        # Gradients pour cette couche
+        dW = layer.input.T @ delta / n
+        db = np.mean(delta, axis=0, keepdims=True)
+
+        if i < len(network) - 1:
+            delta_next = delta @ layer.W.T  # W original
+            
+            prev_layer = list(reversed(network))[i + 1]
+            if prev_layer.activation_name != 'softmax':
+                delta_next = delta_next * prev_layer.activation_derivative(prev_layer.z)
+            
+            delta = delta_next
+
+        layer.W -= learning_rate * dW
+        layer.b -= learning_rate * db
+
+def load_data(filepath):
+    df = pd.read_csv(filepath, header=None)
+
+    y_raw = df.iloc[:, 1].values
+    X     = df.iloc[:, 2:].values.astype(float)
+
+    y = np.zeros((len(y_raw), 2))
+    y[y_raw == 'B', 0] = 1
+    y[y_raw == 'M', 1] = 1
+
+    return X, y
 
 def normalize(X_train, X_valid):
-    mean = np.mean(X_train, axis=0)
-    std = np.std(X_train, axis=0) + 1e-8
+    mean = X_train.mean(axis=0)
+    std  = X_train.std(axis=0)
+    std[std == 0] = 1
+    return (X_train - mean) / std, (X_valid - mean) / std, mean, std
 
-    X_trainNorm = (X_train - mean) / std
-    X_validNorm = (X_valid - mean) / std
-    return (X_trainNorm, X_validNorm, mean, std)
+def train(network, X_train, y_train, X_valid, y_valid,
+          learning_rate, epochs, batch_size):
 
-class MLP:
-    def __init__(self, layer_sizes=[30, 24, 24, 2]):
-        self.layer_sizes = layer_sizes
-        self.weights = []
-        self.bias = []
-        self.build()
+    history = {'loss': [], 'val_loss': [], 'acc': [], 'val_acc': []}
+    n = X_train.shape[0]
 
-    def build(self):
-        for i in range(1, len(self.layer_sizes)):
-            fan_in = self.layer_sizes[i-1]
-            fan_out = self.layer_sizes[i]
+    for epoch in range(1, epochs + 1):
 
-            W = np.random.randn(fan_in, fan_out) * np.sqrt(2.0 / fan_in) # Poids (W): l'importance attribue a chaque entree
-            b = np.zeros((1, fan_out)) # Biais (b): aide le neurone a s'activer ou a rester inactif independamment des entrees
-            self.weights.append(W)
-            self.bias.append(b)
-    
-    def relu(self, z): # funct d'activation: declenche le neurone si Z > 0 (ex: detect une texture granuleuse = actif)
-        return (np.maximum(0, z))
+        indices = np.random.permutation(n)
+        X_train = X_train[indices]
+        y_train = y_train[indices]
 
-    def softmax(self, z): # transformer les scores bruts en %
-        z_shift = z - np.max(z, axis=1, keepdims=True)
-        exp_z = np.exp(z_shift)
-        return (exp_z / np.sum(exp_z, axis=1, keepdims=True))
-         
-    def feedforward(self, X): # X = m patients x 30 mesures chacun
-        caches = {}
-        A = X
-        
-        for l in range(1, len(self.layer_sizes)): #
-            Z = A @ self.weights[l-1] + self.bias[l-1]
+        for start in range(0, n, batch_size):
+            X_batch = X_train[start:start + batch_size]
+            y_batch = y_train[start:start + batch_size]
 
-            if l == len(self.layer_sizes) - 1: # Derniere couche
-                A = self.softmax(Z) # Transformation du scores brut en proba
-            else:
-                A = self.relu(Z)
+            y_pred = forward(network, X_batch)
+            backprop(network, y_pred, y_batch, learning_rate)
 
-            caches['Z' + str(l)] = Z # Save du score brut 
-            caches['A' + str(l)] = A # Save de la proba
+        train_pred = forward(network, X_train)
+        valid_pred = forward(network, X_valid)
 
-        return (A, caches)
+        loss     = categorical_crossentropy(train_pred, y_train)
+        val_loss = categorical_crossentropy(valid_pred, y_valid)
+        acc      = accuracy(train_pred, y_train)
+        val_acc  = accuracy(valid_pred, y_valid)
 
-    def cross_entropy_loss(self, Y_pred, Y_true): # quantifier l'erreur
-        m = Y_true.shape[0] # nbr de patients
-        Y_true_oh = np.eye(2)[Y_true.astype(int)] # transforme les reponses au meme format que softmax
-        loss = -1/m * np.sum(Y_true_oh * np.log(Y_pred + 1e-15)) # penalise les mauvaise predict ET recompense les bonnes predict
-        return(np.squeeze(loss))
-    
-    def accurate(self, Y_pred, Y_true): # % de bonnes predictions
-        Y_pred_class = np.argmax(Y_pred, axis=1)
-        return (np.mean(Y_pred_class == Y_true)) # nb_bonnes / nb_total
-    
-    def backward(self, X, Y_true, caches, Y_pred):
-        m = X.shape[0]
+        history['loss'].append(loss)
+        history['val_loss'].append(val_loss)
+        history['acc'].append(acc)
+        history['val_acc'].append(val_acc)
 
+        print(f"epoch {epoch:02d}/{epochs} - "
+              f"loss: {loss:.4f} - val_loss: {val_loss:.4f} - "
+              f"acc: {acc:.4f} - val_acc: {val_acc:.4f}")
 
+    return history
+
+def plot_curves(history, save_path="outputs/learning_curves.png"):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    ax1.plot(history['loss'],     label='training loss')
+    ax1.plot(history['val_loss'], label='validation loss', linestyle='--')
+    ax1.set_title('Loss')
+    ax1.set_xlabel('Epochs')
+    ax1.legend()
+
+    ax2.plot(history['acc'],     label='training acc')
+    ax2.plot(history['val_acc'], label='validation acc', linestyle='--')
+    ax2.set_title('Accuracy')
+    ax2.set_xlabel('Epochs')
+    ax2.legend()
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.show()
+    print(f"Learning curves saved to {save_path}")
+
+def save_model(network, mean, std, filepath="model.npy"):
+    model = {
+        'layers': [
+            {
+                'W':          layer.W,
+                'b':          layer.b,
+                'activation': layer.activation_name,
+            }
+            for layer in network
+        ],
+        'mean': mean,
+        'std':  std,
+    }
+    np.save(filepath, model)
+    print(f"> saving model '{filepath}' to disk...")
 
 def main():
+    parser = argparse.ArgumentParser(description="Train a multilayer perceptron")
+    parser.add_argument("--train",         default="data/data_train.csv")
+    parser.add_argument("--valid",         default="data/data_valid.csv")
+    parser.add_argument("--layers",        type=int, nargs='+', default=[24, 24])
+    parser.add_argument("--epochs",        type=int,   default=84)
+    parser.add_argument("--learning_rate", type=float, default=0.0314)
+    parser.add_argument("--batch_size",    type=int,   default=8)
+    parser.add_argument("--model",         default="model.npy")
+    args = parser.parse_args()
 
-# Phase 1 load data
-    X_trainRow, y_trainStr = readData("data_train.csv")
-    X_ValidRow, y_validStr = readData("data_valid.csv")
+    X_train, y_train = load_data(args.train)
+    X_valid, y_valid = load_data(args.valid)
+    X_train, X_valid, mean, std = normalize(X_train, X_valid)
 
-# Phase 2 preprocess 
-    y_train = binary_labels(y_trainStr)
-    y_valid = binary_labels(y_validStr)
-    X_train, X_valid, mean, std = normalize(X_trainRow, X_ValidRow)
+    print(f"x_train shape : {X_train.shape}")
+    print(f"x_valid shape : {X_valid.shape}")
 
-# TEST BY PRINT   
-    print("RAW shapes: train", X_trainRow.shape, ", valid", X_ValidRow.shape)
-    print("NORM shapes: train", X_train.shape, ", valid", X_valid.shape)
-    print("Labels train:", np.sum(y_train), "M /", len(y_train), "total")
-    print("radius_mean après norm: mean=" + str(round(np.mean(X_train[:,0]), 3)))
+    n_features = X_train.shape[1]
+    n_classes  = 2                  
 
-# Phase 3
-    mlp = MLP([30, 24, 24, 2])
-    Y_pred, caches = mlp.feedforward(X_train[:3])
-    print("X:", X_train[:3].shape)
-    print("Y_pred:", Y_pred.shape)
-    print("Probas:")
-    print(Y_pred.round(3))
-    print("Somme=1:", np.sum(Y_pred, axis=1).round(3))
-    print("Cache:", list(caches.keys()))
+    network = []
+    prev_size = n_features
+    for size in args.layers:
+        network.append(Layer(prev_size, size, activation='sigmoid'))
+        prev_size = size
+    network.append(Layer(prev_size, n_classes, activation='softmax'))
 
-# Phase 4
-    mlp = MLP([30, 24, 24, 2])
-    Y_pred, caches = mlp.feedforward(X_train[100])
-    Y_train_batch = y_train[:100].flatten()
+    history = train(network, X_train, y_train, X_valid, y_valid,
+                    learning_rate=args.learning_rate,
+                    epochs=args.epochs,
+                    batch_size=args.batch_size)
 
-    loss = mlp.cross_entropy_loss(Y_pred, Y_train_batch)
-    acc = mlp.accurate(Y_pred, Y_train_batch)
+    save_model(network, mean, std, args.model)
 
-    print("Loss:", round(loss, 3))
-    print("Accuracy:", round(acc * 100, 1), "%")
-    print("Prediction:", np.argmax(Y_pred[:5], axis=1))
-    print("Correct answers:", Y_train_batch[:5])
+    os.makedirs("outputs", exist_ok=True)
+    plot_curves(history)
 
 
 if __name__ == "__main__":
