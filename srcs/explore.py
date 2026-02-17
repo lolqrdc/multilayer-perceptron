@@ -1,5 +1,11 @@
-# GOAL: Understand & visualize breast cancer dataset (569 samples, 30 features).
-# Focus on TOP 10 MEAN features only (ignore SE/Worst variants for clarity)
+"""
+Exploration and Visualization Module
+
+This module provides data exploration and visualization for the breast cancer
+dataset (569 samples, 30 features). It focuses on the top 10 mean features,
+ignoring SE and Worst variants for clarity. Generates distribution plots and
+feature analysis visualizations.
+"""
 
 import csv
 import os
@@ -8,6 +14,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import argparse
 
 MAIN_FEATURES = [
     "radius_mean", "texture_mean", "perimeter_mean", "area_mean",
@@ -34,7 +41,11 @@ def basicInfo(X, y):
     print(f"Classes: {np.sum(y=='M')} Malignant, {np.sum(y=='B')} Benign")
     
     df_stats = pd.DataFrame(X[:, :10], columns=MAIN_FEATURES)
-    print("\n10 main features stats...")
+    print("\n10 main features stats (mean ± std):")
+    for feat in MAIN_FEATURES:
+        mean = df_stats[feat].mean()
+        std = df_stats[feat].std()
+        print(f"  {feat:25s} {mean:8.3f} ± {std:.3f}")
 
 def distributions_plot(X, y, save_path):
     df = pd.DataFrame(X[:, :10], columns=MAIN_FEATURES)
@@ -55,7 +66,7 @@ def distributions_plot(X, y, save_path):
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-def correlation_scatter_plot(X, y, save_path):
+def violin_plot(X, y, save_path):
     df = pd.DataFrame(X[:, :10], columns=MAIN_FEATURES)
     df['diagnosis'] = y
     
@@ -74,21 +85,32 @@ def correlation_scatter_plot(X, y, save_path):
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
 
+def correlation_heatmap(X, save_path):
+    df = pd.DataFrame(X[:, :10], columns=MAIN_FEATURES)
+    plt.figure(figsize=(12, 10))
+    mask = np.triu(np.ones_like(df.corr(), dtype=bool))
+    sns.heatmap(df.corr(), mask=mask, annot=True, fmt='.2f',
+                cmap='RdBu_r', center=0, square=True, linewidths=0.5)
+    plt.title("Feature Correlation Matrix")
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
 def main():
-    data_file = "data/data.csv"
-    save_dir = "outputs"
+    parser = argparse.ArgumentParser(description="Explore and visualize dataset")
+    parser.add_argument("--dataset", default="data/data.csv", help="Path to input dataset")
+    parser.add_argument("--output", default="outputs", help="Output directory for plots")
+    args = parser.parse_args()
     
-    if len(sys.argv) > 1: data_file = sys.argv[1]
-    if len(sys.argv) > 2: save_dir = sys.argv[2]
+    os.makedirs(args.output, exist_ok=True)
     
-    os.makedirs(save_dir, exist_ok=True)
-    
-    X, y = readData(data_file)
+    X, y = readData(args.dataset)
     
     basicInfo(X, y)
     
-    distributions_plot(X, y, save_dir + "/distributions.png")
-    correlation_scatter_plot(X, y, save_dir + "/analysis.png")
+    distributions_plot(X, y, os.path.join(args.output, "distributions.png"))
+    violin_plot(X, y, os.path.join(args.output, "analysis.png"))
+    correlation_heatmap(X, os.path.join(args.output, "correlation.png"))
     
     print("\nPlots saved.")
 

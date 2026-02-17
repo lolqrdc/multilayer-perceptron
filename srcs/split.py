@@ -1,9 +1,17 @@
-# GOAL: Split dataset into train/validation sets. 
-# 80/20 ratio (standard ML practice) & shuffle+seed=42 for reproducibility
+"""
+Dataset Splitting Module
+
+This module splits the breast cancer dataset into training and validation sets
+using an 80/20 ratio (standard ML practice). Implements shuffle with seed=42
+for reproducibility. Outputs two CSV files: data_train.csv (~455 samples) and
+data_valid.csv (~114 samples).
+"""
 
 import csv
 import os
 import numpy as np
+import pandas as pd
+import argparse
 
 def readData(data):
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,11 +30,15 @@ def writeData(data, filename):
     project_dir = os.path.dirname(script_dir)
     filepath = os.path.join(project_dir, "data", filename)
     
-    np.savetxt(filepath, data, fmt='%s', delimiter=',')
-    print("Saved", data.shape[0], "samples to data/" + filename)
+    pd.DataFrame(data).to_csv(filepath, index=False, header=False)    
+    print(f"Saved {data.shape[0]} samples to data/{filename}")
 
 def main():
-    data = readData("data/data.csv")
+    parser = argparse.ArgumentParser(description="Split dataset into train/validation sets")
+    parser.add_argument("--dataset", default="data/data.csv", help="Path to input dataset")
+    args = parser.parse_args()
+
+    data = readData(args.dataset)
     np.random.seed(42)
     np.random.shuffle(data)
     
@@ -38,8 +50,8 @@ def main():
     train_data = data[:n_train]
     valid_data = data[n_train:]
     
-    print("Train split:", train_data.shape)
-    print("Valid split:", valid_data.shape)
+    print(f"Train split: {train_data.shape}")
+    print(f"Valid split: {valid_data.shape}")
     
     writeData(train_data, "data_train.csv")
     writeData(valid_data, "data_valid.csv")
