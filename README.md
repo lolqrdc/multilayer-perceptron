@@ -91,7 +91,7 @@ python srcs/train.py [OPTIONS]
 | `--train` | str | `data/data_train.csv` | Chemin vers le dataset d'entraînement |
 | `--valid` | str | `data/data_valid.csv` | Chemin vers le dataset de validation |
 | `--layers` | int+ | `24 24` | Architecture du réseau (couches cachées seulement) |
-| `--epochs` | int | `120` | Nombre d'époques d'entraînement |
+| `--epochs` | int | `84` | Nombre d'epochs d'entraînement |
 | `--model` | str | `model.npy` | Chemin de sauvegarde du modèle |
 
 **Paramètres fixes :**
