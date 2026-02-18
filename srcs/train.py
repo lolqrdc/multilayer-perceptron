@@ -188,11 +188,11 @@ def main():
     parser.add_argument("--valid",         default="data/data_valid.csv")
     parser.add_argument("--layers",        type=int, nargs='+', default=[24, 24])
     parser.add_argument("--epochs",        type=int,   default=84)
-    parser.add_argument("--learning_rate", type=float, default=0.0314)
-    parser.add_argument("--batch_size",    type=int,   default=8)
     parser.add_argument("--model",         default="model.npy")
     args = parser.parse_args()
 
+    learning_rate = 0.0314
+    batch_size = 8
     X_train, y_train = load_data(args.train)
     X_valid, y_valid = load_data(args.valid)
     X_train, X_valid, mean, std = normalize(X_train, X_valid)
@@ -211,9 +211,9 @@ def main():
     network.append(Layer(prev_size, n_classes, activation='softmax'))
 
     history = train(network, X_train, y_train, X_valid, y_valid,
-                    learning_rate=args.learning_rate,
+                    learning_rate=learning_rate,
                     epochs=args.epochs,
-                    batch_size=args.batch_size)
+                    batch_size=batch_size)
 
     save_model(network, mean, std, args.model)
 
