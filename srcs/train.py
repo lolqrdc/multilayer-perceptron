@@ -8,6 +8,7 @@ import argparse
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import json
 
 def sigmoid(z):
     return 1 / (1 + np.exp(-z))
@@ -163,8 +164,21 @@ def plot_curves(history, save_path="outputs/learning_curves.png"):
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
     print(f"Learning curves saved to {save_path}")
+
+def save_history(history, filepath="outputs/history.json"):
+    history_json = {
+        key: [float(val) for val in values] 
+        for key, values in history.items()
+    }
+    with open(filepath, 'w') as f:
+        json.dump(history_json, f, indent=2)
+    print(f"Training history saved to {filepath}")
+
+def load_history(filepath):
+    with open(filepath, 'r') as f:
+        return json.load(f)
 
 def save_model(network, mean, std, filepath="model.npy"):
     model = {
@@ -186,11 +200,16 @@ def main():
     parser = argparse.ArgumentParser(description="Train a multilayer perceptron")
     parser.add_argument("--train",         default="data/data_train.csv")
     parser.add_argument("--valid",         default="data/data_valid.csv")
-    parser.add_argument("--layers",        type=int, nargs='+', default=[24, 24])
+    parser.add_argument("--layers",        type=int, nargs='+', default=[32, 32])
     parser.add_argument("--epochs",        type=int,   default=84)
-    parser.add_argument("--model",         default="model.npy")
+    parser.add_argument("--model",         default="models/model.npy")
     args = parser.parse_args()
 
+    os.makedirs("models", exist_ok=True)
+    
+    if not args.model.startswith('models/'):
+        args.model = os.path.join('models', os.path.basename(args.model))
+    
     learning_rate = 0.0314
     batch_size = 8
     X_train, y_train = load_data(args.train)
@@ -215,10 +234,14 @@ def main():
                     epochs=args.epochs,
                     batch_size=batch_size)
 
+    os.makedirs("models", exist_ok=True)
     save_model(network, mean, std, args.model)
 
     os.makedirs("outputs", exist_ok=True)
     plot_curves(history)
+    
+    history_path = args.model.replace('.npy', '_history.json')
+    save_history(history, history_path)
 
 
 if __name__ == "__main__":
