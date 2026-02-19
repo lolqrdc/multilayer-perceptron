@@ -79,7 +79,7 @@ def load_data(filepath):
 
 def main():
     parser = argparse.ArgumentParser(description="Predict with trained MLP")
-    parser.add_argument("--model",   default="model.npy")
+    parser.add_argument("--model",   default="models/model.npy")
     parser.add_argument("--dataset", default="data/data_valid.csv")
     args = parser.parse_args()
 
