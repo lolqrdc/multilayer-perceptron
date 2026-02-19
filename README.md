@@ -167,4 +167,31 @@ Test data shape: (114, 30)
 Binary Cross-Entropy Loss: 0.060469
 Accuracy: 0.9789 (97.89%)
 ```
+
+---
+
+### Comparaison de modèles
+
+```bash
+python srcs/compare.py
+```
+
+**Personnalisation :**
+Éditer `srcs/compare.py` pour modifier :
+- Les fichiers à comparer : `load_history('models/VOTRE_MODEL_history.json')`
+- Les labels : `labels=['Modèle 1', 'Modèle 2']`
+
+**Exemple :**
+
+```bash
+python srcs/train.py --model model_32.npy --layers 32 32 --epochs 84
+python srcs/train.py --model model_128.npy --layers 128 128 --epochs 100
+
+# Comparer
+python srcs/compare.py
+```
+
+**Sortie :**
+- `outputs/comparison.png` - Graphique comparatif avec 2 subplots (loss et accuracy)
+
 ---
